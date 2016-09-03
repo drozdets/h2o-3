@@ -13,46 +13,47 @@ import water.rapids.ast.AstRoot;
 import water.util.ArrayUtils;
 
 /**
- * R 'diff' command.
- * <p/>
- * This method is purely for the console right now.  Print stuff into the string buffer.
- * JSON response is not configured at all.
+ * Compute a lagged version of a time series, shifting the time base back by a given number of observations.
  */
-public class AstDiffLag1 extends AstPrimitive {
+public class AstDiff extends AstPrimitive {
   @Override
   public String[] args() {
-    return new String[]{"ary"};
-  }
-
-  @Override
-  public int nargs() {
-    return 1 + 1;
+    return new String[]{"ary","lag"};
   }
 
   @Override
   public String str() {
-    return "difflag1";
+    return "diff";
+  }
+
+  @Override
+  public int nargs() {
+    return 1 + 2; // (diff x lag)
   }
 
   @Override
   public Val apply(Env env, Env.StackHelp stk, AstRoot asts[]) {
-    Frame fr = stk.track(asts[2].exec(env).getFrame());
+    Frame fr = stk.track(asts[1].exec(env)).getFrame();
+    final double lag = asts[2].exec(env).getNum();
     if (fr.numCols() != 1)
       throw new IllegalArgumentException("Expected a single column for diff. Got: " + fr.numCols() + " columns.");
     if (!fr.anyVec().isNumeric())
       throw new IllegalArgumentException("Expected a numeric column for diff. Got: " + fr.anyVec().get_type_str());
+    if(lag > fr.numRows())
+      throw new IllegalArgumentException("Lag variable should not be greater than number of rows in the frame. Got: " +
+              lag);
 
     final double[] lastElemPerChk = GetLastElemPerChunkTask.get(fr.anyVec());
 
     return new ValFrame(new MRTask() {
       @Override
       public void map(Chunk c, NewChunk nc) {
-        if (c.cidx() == 0) nc.addNA();
-        else nc.addNum(c.atd(0) - lastElemPerChk[c.cidx() - 1]);
-        for (int row = 1; row < c._len; ++row)
-          nc.addNum(c.atd(row) - c.atd(row - 1));
+        if (c.cidx() == 0) nc.addNAs((int) lag);
+        else nc.addNum(c.atd(0) - lastElemPerChk[c.cidx() - (int) lag]);
+        for (int row = (int) lag; row < c._len; ++row)
+          nc.addNum(c.atd(row) - c.atd(row - (int) lag));
       }
-    }.doAll(fr).outputFrame());
+    }.doAll(fr.types(), fr).outputFrame(fr.names(), fr.domains()));
   }
 
   private static class GetLastElemPerChunkTask extends MRTask<GetLastElemPerChunkTask> {

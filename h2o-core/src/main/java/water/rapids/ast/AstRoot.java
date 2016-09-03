@@ -181,7 +181,7 @@ public abstract class AstRoot extends Iced<AstRoot> {
     init(new AstAsDate());
     init(new AstDay());
     init(new AstDayOfWeek());
-    init(new AstDiffLag1());
+    init(new AstDiff());
     init(new AstGetTimeZone());
     init(new AstHour());
     init(new AstListTimeZones());

@@ -777,6 +777,16 @@ na.omit.H2OFrame <- function(object, ...){
   .newExpr("na.omit", object)
 }
 
+#' Conduct a lag transform on a numeric H2OFrame column
+#'
+#' @rdname h2o.diff
+#' @param object H2OFrame object
+#' @param lag An integer indicating which lag to use
+#' @export
+h2o.diff <- function(object, lag){
+  .newExpr("diff", object,lag)
+}
+
 #' Compute DCT of an H2OFrame
 #'
 #' Compute the Discrete Cosine Transform of every row in the H2OFrame
