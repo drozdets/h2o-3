@@ -147,7 +147,7 @@ public class ModelMetricsRegression extends ModelMetricsSupervised {
                 nc[0].addNum(Math.abs(cs[0].atd(i) - cs[1].atd(i)));
             }
           }.doAll(1, (byte)3, new Frame(new String[]{"preds","actual"}, new Vec[]{preds.anyVec(),actual})).outputFrame().anyVec();
-          Distribution dist = new Distribution(m._parms);
+          Distribution dist = m._dist; //update the model's distribution's huber delta to whatever was last scored - this is needed for computing the proper residuals in Model.computeResiduals()
           Vec weight = adaptedFrame.vec(m._parms._weights_column);
           //compute huber delta based on huber alpha quantile on absolute prediction error
           double huberDelta = MathUtils.computeWeightedQuantile(weight, absdiff, m._parms._huber_alpha);

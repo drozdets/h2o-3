@@ -1,10 +1,7 @@
 package hex.glm;
 
-import hex.DataInfo;
+import hex.*;
 import hex.DataInfo.TransformType;
-import hex.ModelMetrics;
-import hex.ModelMetricsBinomialGLM;
-import hex.ModelMetricsRegressionGLM;
 import hex.deeplearning.DeepLearningModel.DeepLearningParameters.MissingValuesHandling;
 import hex.glm.GLMModel.GLMParameters.Link;
 import hex.glm.GLMModel.GLMParameters.Solver;
@@ -1741,6 +1738,50 @@ public class GLMTest  extends TestUtil {
     } finally {
       if( model != null ) model.delete();
       Scope.exit();
+    }
+  }
+
+  @Test
+  public void testResiduals() {
+    for (Family fam : Family.values()) {
+      Frame tfr = null;
+      Frame res = null;
+      Frame preds = null;
+      GLMModel gbm = null;
+
+      try {
+        tfr = parse_test_file("./smalldata/gbm_test/BostonHousing.csv");
+        GLMModel.GLMParameters parms = new GLMModel.GLMParameters();
+        parms._train = tfr._key;
+        String resp = tfr.lastVecName();
+        if (fam==Family.binomial || fam==Family.multinomial) {
+          resp = fam==Family.multinomial?"rad":"chas";
+          Vec v = tfr.remove(resp);
+          tfr.add(resp, v.toCategoricalVec());
+          v.remove();
+          DKV.put(tfr);
+        }
+        parms._response_column = resp;
+        parms._family = fam;
+
+        gbm = new GLM(parms).trainModel().get();
+        preds = gbm.score(tfr);
+
+        res = gbm.computeResiduals(tfr,preds,"myResiduals");
+        double meanRes = res.anyVec().mean();
+        if (gbm._output.nclasses()==2)
+          Assert.assertEquals(meanRes,((ModelMetricsBinomial) gbm._output._training_metrics)._logloss,1e-6*Math.abs(meanRes));
+        else if (gbm._output.nclasses()>2)
+          Assert.assertEquals(meanRes,((ModelMetricsMultinomial) gbm._output._training_metrics)._logloss,1e-6*Math.abs(meanRes));
+        else
+          Assert.assertEquals(meanRes,((ModelMetricsRegression) gbm._output._training_metrics)._mean_residual_deviance,1e-6*Math.abs(meanRes));
+
+      } finally {
+        if (tfr != null) tfr.delete();
+        if (res != null) res.delete();
+        if (preds != null) preds.delete();
+        if (gbm != null) gbm.delete();
+      }
     }
   }
 }

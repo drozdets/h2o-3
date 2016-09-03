@@ -939,6 +939,42 @@ public abstract class Model<M extends Model<M,P,O>, P extends Model.Parameters, 
     return output;
   }
 
+  /**
+   * Compute the residual for each observation
+   * @param valid Validation Frame (must contain the response)
+   * @param predictions Predictions made by the model
+   * @param outputName Name of the output frame
+   * @return Frame containing 1 column with the per-row residuals (deviance for regression, logloss for classification)
+   */
+  public Frame computeResiduals(Frame valid, Frame predictions, String outputName) {
+    assert (_parms._response_column!=null) : "response column can't be null";
+    assert valid.find(_parms._response_column)>=0 : "validation frame must contain a response column";
+    predictions.add(_parms._response_column, valid.vec(_parms._response_column));
+    if (valid.find(_parms._weights_column)>=0)
+      predictions.add(_parms._weights_column, valid.vec(_parms._weights_column));
+    final int respIdx=predictions.find(_parms._response_column);
+    final int weightIdx=predictions.find(_parms._weights_column);
+    return new MRTask() {
+      @Override
+      public void map(Chunk[] cs, NewChunk[] nc) {
+        Chunk weight = weightIdx>=0 ? cs[weightIdx] : new C0DChunk(1, cs[0]._len);
+        Chunk response = cs[respIdx];
+        for (int i=0;i<cs[0]._len;++i) {
+          double w=weight.atd(i);
+          double y=response.atd(i);
+          if (_output.nclasses()==1) { //regression - deviance
+            double f=cs[0].atd(i);
+            nc[0].addNum(deviance(w, y, f));
+          } else {
+            int iact=(int)y;
+            double err = iact < _output.nclasses() ? 1-cs[1+iact].atd(i) : 1;
+            nc[0].addNum(w*MathUtils.logloss(err)); //classification - logloss
+          }
+        }
+      }
+    }.doAll(Vec.T_NUM, predictions).outputFrame(Key.<Frame>make(outputName), new String[]{"residual"}, null);
+  }
+
   // Remove temp keys.  TODO: Really should use Scope but Scope does not
   // currently allow nested-key-keepers.
   static protected void cleanup_adapt( Frame adaptFr, Frame fr ) {
