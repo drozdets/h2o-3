@@ -1,4 +1,4 @@
-package water.rapids.ast.prims.time;
+package water.rapids.ast.prims.timeseries;
 
 import water.MRTask;
 import water.fvec.Chunk;
